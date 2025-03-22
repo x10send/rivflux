@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-
-python src/rivian_python_api/rivian_cli.py "$@"

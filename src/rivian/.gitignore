@@ -1,0 +1,20 @@
+# Binary files
+bin/
+
+# Data files
+data/
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo 

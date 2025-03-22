@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   influxdb:
     image: influxdb:2.7
@@ -7,35 +9,64 @@ services:
     restart: unless-stopped
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=rivflux
-      - DOCKER_INFLUXDB_INIT_PASSWORD=rivflux_password
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_PASSWORD}
       - DOCKER_INFLUXDB_INIT_ORG=rivflux
-      - DOCKER_INFLUXDB_INIT_BUCKET=telegraf
+      - DOCKER_INFLUXDB_INIT_BUCKET=rivian
       - DOCKER_INFLUXDB_INIT_RETENTION=1w
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=rivflux_token_abc
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN}
     volumes:
-      - ./influxdb_config:/etc/influxdb2
-      - ./influxdb_data:/var/lib/influxdb2
-  telegraf:
-    build: ./telegraf/
-    container_name: telegraf
-    environment:
-      - OPENEVSE_URL=http://<openevse_ip_address>/status
-      - RIVIAN_VEHICLE_ID=<00-00000000>
-      - INFLUX_TOKEN=rivflux_token_abc
+      - ./config/influxdb:/etc/influxdb2
+      - ./data/influxdb:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+  rivian-collector:
+    build:
+      context: .
+      dockerfile: docker/rivian/Dockerfile
+    container_name: rivian-collector
     restart: unless-stopped
     volumes:
-      - ./telegraf_config:/etc/telegraf/
+      - ./data/auth:/app
+    command: [
+      "-auth-file=/app/auth.json",
+      "-influx-url=http://influxdb:8086",
+      "-influx-token=${INFLUX_TOKEN}",
+      "-influx-org=rivflux",
+      "-influx-bucket=rivian",
+      "-poll-interval=300"
+    ]
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "ps", "aux", "|", "grep", "logger"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:10.0.3
     container_name: grafana
     ports:
       - 3000:3000
     restart: unless-stopped
     environment:
-      - GF_SECURITY_ADMIN_USER=rivflux
-      - GF_SECURITY_ADMIN_PASSWORD=rivflux_password
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
     volumes:
-      - ./grafana_config/datasources:/etc/grafana/provisioning/datasources
-      - ./grafana_config/dashboards:/etc/grafana/provisioning/dashboards
-      - ./grafana_dashboards:/var/lib/grafana/dashboards
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./data/grafana:/var/lib/grafana
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

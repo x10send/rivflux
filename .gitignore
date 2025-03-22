@@ -1,4 +1,38 @@
-influxdb_config
-influxdb_data
-.idea
-*.pickle
+# Environment variables
+.env
+
+# Authentication data
+data/auth/*.json
+
+# InfluxDB data
+data/influxdb/
+config/influxdb/influx-configs
+
+# Grafana data
+data/grafana/
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
