@@ -16,8 +16,11 @@ func TestAuthenticator_InitialLogin(t *testing.T) {
 		t.Error("Expected error with empty credentials")
 	}
 
-	// TODO: Add mock HTTP client tests
-	t.Skip("Skipping live HTTP request tests")
+	// Test with invalid file path
+	err = NewAuthenticator(true).InitialLogin("test@example.com", "password", "/invalid/path/auth.json")
+	if err == nil {
+		t.Error("Expected error with invalid file path")
+	}
 }
 
 func TestAuthenticator_CompleteMFA(t *testing.T) {
@@ -49,6 +52,15 @@ func TestAuthenticator_CompleteMFA(t *testing.T) {
 	}
 	defer os.Remove(mfaFile)
 
-	// TODO: Add mock HTTP client tests
-	t.Skip("Skipping live HTTP request tests")
+	// Test with empty OTP code
+	err = NewAuthenticator(true).CompleteMFA("test@example.com", "", mfaFile, "test_auth.json")
+	if err == nil {
+		t.Error("Expected error with empty OTP code")
+	}
+
+	// Test with invalid MFA file
+	err = NewAuthenticator(true).CompleteMFA("test@example.com", "123456", "/invalid/path/auth.mfa", "test_auth.json")
+	if err == nil {
+		t.Error("Expected error with invalid MFA file")
+	}
 } 
