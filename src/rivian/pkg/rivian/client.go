@@ -61,7 +61,7 @@ func (c *Client) GetCSRFToken() (*types.CSRFResponse, error) {
 	}`
 
 	var csrfResp types.CSRFResponse
-	if err := c.client.DoRequest("POST", "/graphql", csrfQuery, nil, &csrfResp); err != nil {
+	if err := c.client.DoRequest("POST", "", csrfQuery, nil, &csrfResp); err != nil {
 		return nil, err
 	}
 
@@ -88,7 +88,7 @@ func (c *Client) GetVehicleState() (*types.VehicleState, error) {
 	}
 
 	var vehicleState types.VehicleState
-	if err := c.client.DoRequest("POST", "/graphql", fmt.Sprintf(query, auth.VehicleID), headers, &vehicleState); err != nil {
+	if err := c.client.DoRequest("POST", "", fmt.Sprintf(query, auth.VehicleID), headers, &vehicleState); err != nil {
 		return nil, err
 	}
 

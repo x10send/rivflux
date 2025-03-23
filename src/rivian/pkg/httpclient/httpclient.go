@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,18 +50,36 @@ func (c *Client) DoRequest(method, path, body string, headers map[string]string,
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("request failed with status: %d", resp.StatusCode)
+	// Read response body
+	var reader io.Reader = resp.Body
+
+	// Handle gzip compression
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return fmt.Errorf("error creating gzip reader: %v", err)
+		}
+		defer gzReader.Close()
+		reader = gzReader
 	}
 
-	// Read response body
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(reader)
 	if err != nil {
 		return fmt.Errorf("error reading response: %v", err)
 	}
 
 	if c.debug {
-		fmt.Printf("Response: %s\n", string(respBody))
+		fmt.Printf("Request URL: %s\n", req.URL.String())
+		fmt.Printf("Request Method: %s\n", req.Method)
+		fmt.Printf("Request Headers: %v\n", req.Header)
+		fmt.Printf("Request Body: %s\n", body)
+		fmt.Printf("Response Status: %d\n", resp.StatusCode)
+		fmt.Printf("Response Headers: %v\n", resp.Header)
+		fmt.Printf("Response Body: %s\n", string(respBody))
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("request failed with status: %d", resp.StatusCode)
 	}
 
 	if err := json.Unmarshal(respBody, result); err != nil {
@@ -79,7 +98,7 @@ func (c *Client) GetCSRFToken() (*types.CSRFResponse, error) {
 	}`
 
 	var csrfResp types.CSRFResponse
-	if err := c.DoRequest("POST", "/graphql", csrfQuery, nil, &csrfResp); err != nil {
+	if err := c.DoRequest("POST", "", csrfQuery, nil, &csrfResp); err != nil {
 		return nil, err
 	}
 

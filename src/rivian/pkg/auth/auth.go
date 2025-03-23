@@ -61,8 +61,8 @@ func (a *Authenticator) InitialLogin(username, password, outputFile string) erro
 	}
 
 	var authResp types.AuthResponse
-	if err := a.client.DoRequest("POST", "/graphql", fmt.Sprintf(loginQuery, username, password), headers, &authResp); err != nil {
-		return err
+	if err := a.client.DoRequest("POST", "", fmt.Sprintf(loginQuery, username, password), headers, &authResp); err != nil {
+		return fmt.Errorf("initial login failed: %v", err)
 	}
 
 	// Check if MFA is required
@@ -119,8 +119,8 @@ func (a *Authenticator) CompleteAuth(accessToken, refreshToken, userSessionToken
 	}
 
 	var vehiclesResp types.VehiclesResponse
-	if err := a.client.DoRequest("POST", "/graphql", vehiclesQuery, headers, &vehiclesResp); err != nil {
-		return err
+	if err := a.client.DoRequest("POST", "", vehiclesQuery, headers, &vehiclesResp); err != nil {
+		return fmt.Errorf("failed to get vehicles: %v", err)
 	}
 
 	if len(vehiclesResp.Data.CurrentUser.Vehicles) == 0 {
@@ -187,8 +187,8 @@ func (a *Authenticator) CompleteMFA(username, password, otpCode, outputFile stri
 	}
 
 	var authResp types.AuthResponse
-	if err := a.client.DoRequest("POST", "/graphql", fmt.Sprintf(otpQuery, username, otpCode, mfaData.OTPToken), headers, &authResp); err != nil {
-		return err
+	if err := a.client.DoRequest("POST", "", fmt.Sprintf(otpQuery, username, otpCode, mfaData.OTPToken), headers, &authResp); err != nil {
+		return fmt.Errorf("mfa login failed: %v", err)
 	}
 
 	// Clean up temporary MFA file
