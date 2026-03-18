@@ -1,4 +1,4 @@
-# rivian - x logger (rivflux)
+# Rivflux
 
 A tool to collect and visualize Rivian vehicle data using InfluxDB and Grafana.
 
