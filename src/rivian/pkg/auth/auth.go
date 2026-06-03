@@ -12,15 +12,19 @@ import (
 	"github.com/x10send/rivflux/pkg/types"
 )
 
+const (
+	mfaFileSuffix          = ".mfa"
+	mobileMFALoginResponse = "MobileMFALoginResponse"
+	mfaSessionTTL          = time.Hour
+)
+
 type Authenticator struct {
 	client *httpclient.Client
-	debug  bool
 }
 
 func NewAuthenticator(debug bool) *Authenticator {
 	return &Authenticator{
 		client: httpclient.NewClient(types.RivianGatewayPath, debug),
-		debug:  debug,
 	}
 }
 
@@ -28,38 +32,39 @@ func (a *Authenticator) GetCSRFToken() (*types.CSRFResponse, error) {
 	return a.client.GetCSRFToken()
 }
 
-func (a *Authenticator) InitialLogin(username, password, outputFile string) error {
+// InitialLogin starts the Rivian login flow. Returns mfaRequired=true if an OTP
+// was sent to the user's email; in that case call CompleteMFA next.
+func (a *Authenticator) InitialLogin(username, password, outputFile string) (mfaRequired bool, err error) {
 	if username == "" || password == "" {
-		return fmt.Errorf("username and password are required")
+		return false, fmt.Errorf("username and password are required")
 	}
 
 	csrfResp, err := a.GetCSRFToken()
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	// Use proper JSON marshaling for variables to prevent injection.
 	body, err := json.Marshal(map[string]any{
 		"operationName": "Login",
 		"variables":     map[string]string{"email": username, "password": password},
 		"query":         "mutation Login($email: String!, $password: String!) { login(email: $email, password: $password) { __typename ... on MobileLoginResponse { accessToken refreshToken userSessionToken } ... on MobileMFALoginResponse { otpToken } } }",
 	})
 	if err != nil {
-		return fmt.Errorf("error building login request: %v", err)
+		return false, fmt.Errorf("error building login request: %v", err)
 	}
 
 	headers := map[string]string{
 		"Csrf-Token": csrfResp.Data.CreateCsrfToken.CSRFToken,
 		"A-Sess":     csrfResp.Data.CreateCsrfToken.AppSessionToken,
-		"Dc-Cid":     fmt.Sprintf("m-ios-%s", uuid.New().String()),
+		"Dc-Cid":     newDeviceID(),
 	}
 
 	var authResp types.AuthResponse
 	if err := a.client.DoRequest("POST", "", string(body), headers, &authResp); err != nil {
-		return fmt.Errorf("initial login failed: %v", err)
+		return false, fmt.Errorf("initial login failed: %v", err)
 	}
 
-	if authResp.Data.Login.TypeName == "MobileMFALoginResponse" {
+	if authResp.Data.Login.TypeName == mobileMFALoginResponse {
 		mfaData := types.MFAData{
 			Username:        username,
 			CSRFToken:       csrfResp.Data.CreateCsrfToken.CSRFToken,
@@ -69,15 +74,15 @@ func (a *Authenticator) InitialLogin(username, password, outputFile string) erro
 		}
 		jsonData, err := json.Marshal(mfaData)
 		if err != nil {
-			return fmt.Errorf("error marshaling MFA data: %v", err)
+			return false, fmt.Errorf("error marshaling MFA data: %v", err)
 		}
-		if err := os.WriteFile(outputFile+".mfa", jsonData, 0600); err != nil {
-			return fmt.Errorf("error writing MFA file: %v", err)
+		if err := os.WriteFile(outputFile+mfaFileSuffix, jsonData, 0600); err != nil {
+			return false, fmt.Errorf("error writing MFA session file: %v", err)
 		}
-		return nil
+		return true, nil
 	}
 
-	return a.CompleteAuth(
+	return false, a.CompleteAuth(
 		authResp.Data.Login.AccessToken,
 		authResp.Data.Login.RefreshToken,
 		authResp.Data.Login.UserSessionToken,
@@ -88,17 +93,20 @@ func (a *Authenticator) InitialLogin(username, password, outputFile string) erro
 }
 
 func (a *Authenticator) CompleteAuth(accessToken, refreshToken, userSessionToken, csrfToken, appSessionToken, outputFile string) error {
-	vehiclesQuery, _ := json.Marshal(map[string]any{
+	vehiclesQuery, err := json.Marshal(map[string]any{
 		"operationName": "getUserInfo",
 		"query":         "query getUserInfo { currentUser { vehicles { id } } }",
 		"variables":     nil,
 	})
+	if err != nil {
+		return fmt.Errorf("error building vehicles request: %v", err)
+	}
 
 	headers := map[string]string{
 		"Csrf-Token": csrfToken,
 		"A-Sess":     appSessionToken,
 		"U-Sess":     userSessionToken,
-		"Dc-Cid":     fmt.Sprintf("m-ios-%s", uuid.New().String()),
+		"Dc-Cid":     newDeviceID(),
 	}
 
 	var vehiclesResp types.VehiclesResponse
@@ -107,7 +115,7 @@ func (a *Authenticator) CompleteAuth(accessToken, refreshToken, userSessionToken
 	}
 
 	if len(vehiclesResp.Data.CurrentUser.Vehicles) == 0 {
-		return fmt.Errorf("no vehicles found")
+		return fmt.Errorf("no vehicles found for this account")
 	}
 
 	authData := types.AuthData{
@@ -125,26 +133,27 @@ func (a *Authenticator) CompleteAuth(accessToken, refreshToken, userSessionToken
 
 	encoded := base64.StdEncoding.EncodeToString(jsonData)
 	if err := os.WriteFile(outputFile, []byte(encoded), 0600); err != nil {
-		return fmt.Errorf("error writing auth file: %v", err)
+		return fmt.Errorf("error writing auth file %s: %v", outputFile, err)
 	}
 	return nil
 }
 
-// CompleteMFA completes the MFA login process using the interim .mfa temp file written
-// by InitialLogin. The password parameter is unused (OTP flow doesn't re-send credentials).
-func (a *Authenticator) CompleteMFA(username, _ /* password */, otpCode, outputFile string) error {
-	tempFile := outputFile + ".mfa"
+// CompleteMFA finishes an MFA login using the OTP code sent to the user's email.
+// It reads the interim session file written by InitialLogin and removes it on completion.
+func (a *Authenticator) CompleteMFA(username, otpCode, outputFile string) error {
+	tempFile := outputFile + mfaFileSuffix
 	mfaDataBytes, err := os.ReadFile(tempFile)
 	if err != nil {
-		return fmt.Errorf("error reading MFA file: %v", err)
+		return fmt.Errorf("error reading MFA session file: %v", err)
 	}
+	defer os.Remove(tempFile) // always clean up, whether we succeed or fail
 
 	var mfaData types.MFAData
 	if err := json.Unmarshal(mfaDataBytes, &mfaData); err != nil {
-		return fmt.Errorf("error decoding MFA data: %v", err)
+		return fmt.Errorf("error decoding MFA session: %v", err)
 	}
 
-	if time.Now().Unix()-mfaData.Timestamp > 3600 {
+	if time.Since(time.Unix(mfaData.Timestamp, 0)) > mfaSessionTTL {
 		return fmt.Errorf("MFA session expired — please log in again")
 	}
 
@@ -164,15 +173,13 @@ func (a *Authenticator) CompleteMFA(username, _ /* password */, otpCode, outputF
 	headers := map[string]string{
 		"Csrf-Token": mfaData.CSRFToken,
 		"A-Sess":     mfaData.AppSessionToken,
-		"Dc-Cid":     fmt.Sprintf("m-ios-%s", uuid.New().String()),
+		"Dc-Cid":     newDeviceID(),
 	}
 
 	var authResp types.AuthResponse
 	if err := a.client.DoRequest("POST", "", string(body), headers, &authResp); err != nil {
-		return fmt.Errorf("mfa login failed: %v", err)
+		return fmt.Errorf("MFA verification failed: %v", err)
 	}
-
-	os.Remove(tempFile)
 
 	return a.CompleteAuth(
 		authResp.Data.LoginWithOTP.AccessToken,
@@ -182,4 +189,8 @@ func (a *Authenticator) CompleteMFA(username, _ /* password */, otpCode, outputF
 		mfaData.AppSessionToken,
 		outputFile,
 	)
+}
+
+func newDeviceID() string {
+	return "m-ios-" + uuid.New().String()
 }

@@ -2,30 +2,15 @@ package logger
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
+	"github.com/x10send/rivflux/internal/testutil"
 	"github.com/x10send/rivflux/pkg/types"
 )
-
-// writeAuthFile creates a temp file containing base64-encoded AuthData JSON.
-func writeAuthFile(t *testing.T, data types.AuthData) string {
-	t.Helper()
-	raw, _ := json.Marshal(data)
-	encoded := base64.StdEncoding.EncodeToString(raw)
-	f, err := os.CreateTemp(t.TempDir(), "auth_*.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.WriteString(encoded) //nolint:errcheck
-	f.Close()
-	return f.Name()
-}
 
 // mockInfluxDB returns a test server that serves a passing /health endpoint and
 // accepts writes on /api/v2/write. It counts how many write requests arrive.
@@ -107,7 +92,7 @@ func TestRun_WritesDataAndRespectsCancel(t *testing.T) {
 	}))
 	defer rivianSrv.Close()
 
-	authFile := writeAuthFile(t, types.AuthData{
+	authFile := testutil.WriteAuthFile(t, types.AuthData{
 		Token: "test-token", VehicleID: "v001",
 	})
 

@@ -2,6 +2,7 @@ package setup
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"os"
 	"sync"
@@ -10,11 +11,16 @@ import (
 )
 
 // Authenticator is the subset of auth.Authenticator used by the setup handler.
-// Defined as an interface so tests can inject a fake.
+// Defined as an interface so tests can inject a fake without hitting the network.
 type Authenticator interface {
-	InitialLogin(username, password, outputFile string) error
-	CompleteMFA(username, password, otpCode, outputFile string) error
+	InitialLogin(username, password, outputFile string) (mfaRequired bool, err error)
+	CompleteMFA(username, otpCode, outputFile string) error
 }
+
+const (
+	maxEmailLen = 254
+	maxOTPLen   = 8
+)
 
 var pageTmpl = template.Must(template.New("page").Parse(`<!DOCTYPE html>
 <html lang="en">
@@ -56,7 +62,7 @@ button:hover{background:#2ea043}
   <p style="margin-top:1.25rem;font-size:.875rem;color:#8b949e">Re-authenticate if your Rivian session has expired.</p>
   <form method="POST" action="/setup/login">
     <label>Rivian email</label>
-    <input name="username" type="email" required autocomplete="username">
+    <input name="username" type="email" required maxlength="254" autocomplete="username">
     <label>Password</label>
     <input name="password" type="password" required autocomplete="current-password">
     <button type="submit">Re-authenticate</button>
@@ -67,7 +73,7 @@ button:hover{background:#2ea043}
   <form method="POST" action="/setup/mfa">
     <input name="username" type="hidden" value="{{.Username}}">
     <label>One-time code</label>
-    <input name="otp" type="text" required autocomplete="one-time-code" autofocus inputmode="numeric">
+    <input name="otp" type="text" required maxlength="8" autocomplete="one-time-code" autofocus inputmode="numeric">
     <button type="submit">Verify</button>
   </form>
 
@@ -75,7 +81,7 @@ button:hover{background:#2ea043}
   <div class="status waiting">Not yet authenticated<span class="badge waiting">waiting</span></div>
   <form method="POST" action="/setup/login">
     <label>Rivian email</label>
-    <input name="username" type="email" required autocomplete="username">
+    <input name="username" type="email" required maxlength="254" autocomplete="username">
     <label>Password</label>
     <input name="password" type="password" required autocomplete="current-password">
     <button type="submit">Authenticate</button>
@@ -85,27 +91,24 @@ button:hover{background:#2ea043}
 </body>
 </html>`))
 
-// Handler serves the setup web UI and drives the Rivian auth flow.
 type Handler struct {
-	authFile        string
-	onAuth          func()
+	authFile         string
+	onAuth           func()
 	newAuthenticator func() Authenticator
-	mu              sync.Mutex
-	pendingUsername string
+	mu               sync.Mutex
+	pendingUsername  string
 }
 
-// NewHandler creates a Handler using the real Rivian authenticator.
 func NewHandler(authFile string, onAuth func()) *Handler {
 	return newHandlerWithAuth(authFile, onAuth, func() Authenticator {
 		return auth.NewAuthenticator(false)
 	})
 }
 
-// newHandlerWithAuth allows tests to inject a fake authenticator.
 func newHandlerWithAuth(authFile string, onAuth func(), newAuth func() Authenticator) *Handler {
 	return &Handler{
-		authFile:        authFile,
-		onAuth:          onAuth,
+		authFile:         authFile,
+		onAuth:           onAuth,
 		newAuthenticator: newAuth,
 	}
 }
@@ -132,8 +135,8 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 	pageTmpl.Execute(w, map[string]string{"State": state, "Username": pending}) //nolint:errcheck
 }
 
-// handleLogin accepts username+password, calls InitialLogin. If MFA is triggered
-// it stores the pending username and redirects to the OTP form.
+// handleLogin calls InitialLogin. If MFA is required it stores the pending
+// username; otherwise it signals the logger to start.
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -145,14 +148,19 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		h.renderError(w, "unconfigured", "", "Email and password are required.")
 		return
 	}
-
-	if err := h.newAuthenticator().InitialLogin(username, password, h.authFile); err != nil {
-		h.renderError(w, "unconfigured", "", "Authentication failed: "+err.Error())
+	if len(username) > maxEmailLen {
+		h.renderError(w, "unconfigured", "", "Email address is too long.")
 		return
 	}
 
-	// InitialLogin writes a .mfa file when MFA is required instead of auth.json.
-	if fileExists(h.authFile + ".mfa") {
+	mfaRequired, err := h.newAuthenticator().InitialLogin(username, password, h.authFile)
+	if err != nil {
+		log.Printf("setup: InitialLogin error for %s: %v", username, err)
+		h.renderError(w, "unconfigured", "", "Authentication failed.")
+		return
+	}
+
+	if mfaRequired {
 		h.mu.Lock()
 		h.pendingUsername = username
 		h.mu.Unlock()
@@ -169,7 +177,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// handleMFA accepts the OTP code and completes the login.
+// handleMFA completes the login with the OTP code from the user's email.
 func (h *Handler) handleMFA(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -181,10 +189,14 @@ func (h *Handler) handleMFA(w http.ResponseWriter, r *http.Request) {
 		h.renderError(w, "mfa", username, "One-time code is required.")
 		return
 	}
+	if len(otp) > maxOTPLen {
+		h.renderError(w, "mfa", username, "One-time code is too long.")
+		return
+	}
 
-	// password is unused by CompleteMFA — it reads the interim .mfa file on disk.
-	if err := h.newAuthenticator().CompleteMFA(username, "", otp, h.authFile); err != nil {
-		h.renderError(w, "mfa", username, "Verification failed: "+err.Error())
+	if err := h.newAuthenticator().CompleteMFA(username, otp, h.authFile); err != nil {
+		log.Printf("setup: CompleteMFA error for %s: %v", username, err)
+		h.renderError(w, "mfa", username, "Verification failed.")
 		return
 	}
 

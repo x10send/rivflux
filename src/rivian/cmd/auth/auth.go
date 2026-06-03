@@ -11,18 +11,21 @@ func runAuth(username, password, otpCode, outputFile string, debug bool) error {
 	authenticator := auth.NewAuthenticator(debug)
 
 	if otpCode != "" {
-		// Complete MFA login
-		if err := authenticator.CompleteMFA(username, password, otpCode, outputFile); err != nil {
+		if err := authenticator.CompleteMFA(username, otpCode, outputFile); err != nil {
 			return fmt.Errorf("MFA completion failed: %v", err)
 		}
 		log.Println("MFA authentication successful")
 		return nil
 	}
 
-	// Initial login
-	if err := authenticator.InitialLogin(username, password, outputFile); err != nil {
-		return fmt.Errorf("Initial login failed: %v", err)
+	mfaRequired, err := authenticator.InitialLogin(username, password, outputFile)
+	if err != nil {
+		return fmt.Errorf("initial login failed: %v", err)
 	}
-	log.Println("Initial login successful")
+	if mfaRequired {
+		log.Println("MFA required — check your email and run auth again with -otp flag")
+		return nil
+	}
+	log.Println("Authentication successful")
 	return nil
-} 
+}

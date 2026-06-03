@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
+
+	"github.com/x10send/rivflux/pkg/logger"
 )
 
 func main() {
-	// Parse command line flags
 	authFile := flag.String("auth-file", "auth.json", "Path to auth file")
 	influxURL := flag.String("influx-url", "http://influxdb:8086", "InfluxDB URL")
 	influxToken := flag.String("influx-token", "", "InfluxDB token")
@@ -19,7 +21,7 @@ func main() {
 		log.Fatal("InfluxDB token is required")
 	}
 
-	if err := runLogger(*authFile, *influxURL, *influxToken, *influxOrg, *influxBucket, *pollInterval); err != nil {
+	if err := logger.Run(context.Background(), *authFile, *influxURL, *influxToken, *influxOrg, *influxBucket, *pollInterval); err != nil {
 		log.Fatal(err)
 	}
-} 
+}

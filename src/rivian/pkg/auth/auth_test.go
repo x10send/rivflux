@@ -10,7 +10,7 @@ import (
 )
 
 func TestInitialLogin_EmptyCredentials(t *testing.T) {
-	err := NewAuthenticator(false).InitialLogin("", "", "auth.json")
+	_, err := NewAuthenticator(false).InitialLogin("", "", "auth.json")
 	if err == nil {
 		t.Fatal("expected error for empty credentials")
 	}
@@ -18,14 +18,14 @@ func TestInitialLogin_EmptyCredentials(t *testing.T) {
 
 func TestInitialLogin_NetworkFailure(t *testing.T) {
 	// Points at a port nothing is listening on.
-	err := NewAuthenticator(false).InitialLogin("user@example.com", "pass", "auth.json")
+	_, err := NewAuthenticator(false).InitialLogin("user@example.com", "pass", "auth.json")
 	if err == nil {
 		t.Fatal("expected error when Rivian API is unreachable")
 	}
 }
 
 func TestCompleteMFA_MissingMFAFile(t *testing.T) {
-	err := NewAuthenticator(false).CompleteMFA("user@example.com", "", "123456", "/nonexistent/auth.json")
+	err := NewAuthenticator(false).CompleteMFA("user@example.com", "123456", "/nonexistent/auth.json")
 	if err == nil {
 		t.Fatal("expected error when .mfa file is missing")
 	}
@@ -40,7 +40,7 @@ func TestCompleteMFA_CorruptedMFAFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := NewAuthenticator(false).CompleteMFA("user@example.com", "", "123456", authFile)
+	err := NewAuthenticator(false).CompleteMFA("user@example.com", "123456", authFile)
 	if err == nil {
 		t.Fatal("expected error for corrupted .mfa file")
 	}
@@ -63,7 +63,7 @@ func TestCompleteMFA_ExpiredSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := NewAuthenticator(false).CompleteMFA("user@example.com", "", "123456", authFile)
+	err := NewAuthenticator(false).CompleteMFA("user@example.com", "123456", authFile)
 	if err == nil {
 		t.Fatal("expected error for expired MFA session")
 	}
@@ -88,7 +88,7 @@ func TestCompleteMFA_NetworkFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := NewAuthenticator(false).CompleteMFA("user@example.com", "", "123456", authFile)
+	err := NewAuthenticator(false).CompleteMFA("user@example.com", "123456", authFile)
 	if err == nil {
 		t.Fatal("expected network error when Rivian is unreachable")
 	}

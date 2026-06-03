@@ -13,61 +13,44 @@ import (
 type Client struct {
 	client   *httpclient.Client
 	authFile string
-	debug    bool
 }
 
 func NewClient(authFile string, debug bool) *Client {
 	return &Client{
 		client:   httpclient.NewClient(types.RivianAPIPath, debug),
 		authFile: authFile,
-		debug:    debug,
 	}
 }
 
 func (c *Client) GetAuthData() (*types.AuthData, error) {
 	encodedData, err := os.ReadFile(c.authFile)
 	if err != nil {
-		return nil, fmt.Errorf("error reading auth file: %v", err)
+		return nil, fmt.Errorf("error reading auth file %s: %v", c.authFile, err)
 	}
 
 	decodedData, err := base64.StdEncoding.DecodeString(string(encodedData))
 	if err != nil {
-		return nil, fmt.Errorf("error decoding base64 data: %v", err)
+		return nil, fmt.Errorf("error decoding auth file %s: %v", c.authFile, err)
 	}
 
 	var auth types.AuthData
 	if err := json.Unmarshal(decodedData, &auth); err != nil {
-		return nil, fmt.Errorf("error parsing auth data: %v", err)
+		return nil, fmt.Errorf("error parsing auth file %s: %v", c.authFile, err)
 	}
 
 	if auth.VehicleID == "" {
-		return nil, fmt.Errorf("no vehicle ID found in auth file")
+		return nil, fmt.Errorf("no vehicle ID found in auth file %s", c.authFile)
 	}
 
 	return &auth, nil
 }
 
-func (c *Client) GetCSRFToken() (*types.CSRFResponse, error) {
-	body, _ := json.Marshal(map[string]any{
-		"operationName": "CreateCSRFToken",
-		"variables":     nil,
-		"query":         "mutation CreateCSRFToken { createCsrfToken { __typename csrfToken appSessionToken } }",
-	})
-
-	var csrfResp types.CSRFResponse
-	if err := c.client.DoRequest("POST", "", string(body), nil, &csrfResp); err != nil {
-		return nil, err
-	}
-	return &csrfResp, nil
-}
-
 func (c *Client) GetVehicleState() (*types.VehicleState, error) {
 	auth, err := c.GetAuthData()
 	if err != nil {
-		return nil, fmt.Errorf("error getting auth data: %v", err)
+		return nil, err
 	}
 
-	// Use proper JSON marshaling so vehicleId is safely encoded.
 	body, err := json.Marshal(map[string]any{
 		"operationName": "GetVehicleState",
 		"variables":     map[string]string{"vehicleId": auth.VehicleID},

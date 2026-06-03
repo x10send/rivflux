@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/x10send/rivflux/pkg/logger"
 	"github.com/x10send/rivflux/pkg/setup"
@@ -45,7 +46,6 @@ func main() {
 		log.Fatal("INFLUX_TOKEN env var (or -influx-token flag) is required")
 	}
 
-	// Ensure the directory for the auth file exists.
 	if err := os.MkdirAll(filepath.Dir(*authFile), 0700); err != nil {
 		log.Fatalf("Cannot create auth file directory: %v", err)
 	}
@@ -67,21 +67,16 @@ func main() {
 		ctx, cancel := context.WithCancel(context.Background())
 		loggerCancel = cancel
 		go func() {
-			// Retry loop: if logger exits due to transient error (e.g. InfluxDB
-			// temporarily unavailable), restart it after a short delay.
 			for {
-				if err := logger.Run(ctx, *authFile, *influxURL, *influxToken, *influxOrg, *influxBucket, *pollInterval); err != nil {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						log.Printf("Logger error (will retry in 30s): %v", err)
-					}
+				err := logger.Run(ctx, *authFile, *influxURL, *influxToken, *influxOrg, *influxBucket, *pollInterval)
+				if err == nil {
+					return // context cancelled, clean exit
 				}
+				log.Printf("Logger error (retrying in 30s): %v", err)
 				select {
 				case <-ctx.Done():
 					return
-				default:
+				case <-time.After(30 * time.Second):
 				}
 			}
 		}()
@@ -93,6 +88,9 @@ func main() {
 	handler.Register(mux)
 
 	startLogger()
+	if _, err := os.Stat(*authFile); err != nil {
+		log.Println("Auth not configured — open the setup UI to authenticate")
+	}
 
 	addr := fmt.Sprintf(":%d", *setupPort)
 	log.Printf("Setup UI listening on %s", addr)

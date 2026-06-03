@@ -1,6 +1,5 @@
 package types
 
-// AuthResponse represents the response from the login endpoints
 type AuthResponse struct {
 	Data struct {
 		Login struct {
@@ -8,7 +7,7 @@ type AuthResponse struct {
 			AccessToken      string `json:"accessToken"`
 			RefreshToken     string `json:"refreshToken"`
 			UserSessionToken string `json:"userSessionToken"`
-			OTPToken        string `json:"otpToken"`
+			OTPToken         string `json:"otpToken"`
 		} `json:"login"`
 		LoginWithOTP struct {
 			TypeName         string `json:"__typename"`
@@ -19,7 +18,6 @@ type AuthResponse struct {
 	} `json:"data"`
 }
 
-// VehicleState represents the current state of a vehicle
 type VehicleState struct {
 	Data struct {
 		VehicleState struct {
@@ -73,4 +71,4 @@ type VehicleState struct {
 			} `json:"batteryEnergyRemaining"`
 		} `json:"vehicleState"`
 	} `json:"data"`
-} 
+}

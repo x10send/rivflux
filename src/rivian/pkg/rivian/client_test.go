@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/x10send/rivflux/internal/testutil"
 	"github.com/x10send/rivflux/pkg/httpclient"
 	"github.com/x10send/rivflux/pkg/types"
 )
@@ -28,22 +29,6 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
-// writeAuthFile creates a temp auth file with the given AuthData and returns its path.
-func writeAuthFile(t *testing.T, data types.AuthData) string {
-	t.Helper()
-	raw, err := json.Marshal(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, err := os.CreateTemp(t.TempDir(), "auth_*.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.WriteString(base64.StdEncoding.EncodeToString(raw)) //nolint:errcheck
-	f.Close()
-	return f.Name()
-}
-
 func TestGetAuthData_Valid(t *testing.T) {
 	want := types.AuthData{
 		Token:            "tok",
@@ -53,7 +38,7 @@ func TestGetAuthData_Valid(t *testing.T) {
 		AppSessionToken:  "app",
 		VehicleID:        "v123",
 	}
-	path := writeAuthFile(t, want)
+	path := testutil.WriteAuthFile(t, want)
 
 	got, err := NewClient(path, false).GetAuthData()
 	if err != nil {
@@ -94,45 +79,15 @@ func TestGetAuthData_BadJSON(t *testing.T) {
 }
 
 func TestGetAuthData_MissingVehicleID(t *testing.T) {
-	path := writeAuthFile(t, types.AuthData{Token: "tok"}) // VehicleID empty
+	path := testutil.WriteAuthFile(t, types.AuthData{Token: "tok"}) // VehicleID empty
 	_, err := NewClient(path, false).GetAuthData()
 	if err == nil {
 		t.Fatal("expected error when VehicleID is missing")
 	}
 }
 
-func TestGetCSRFToken(t *testing.T) {
-	resp := map[string]any{
-		"data": map[string]any{
-			"createCsrfToken": map[string]string{
-				"__typename":      "CreateCsrfTokenResponse",
-				"csrfToken":       "csrf-xyz",
-				"appSessionToken": "app-xyz",
-			},
-		},
-	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(resp) //nolint:errcheck
-	}))
-	defer srv.Close()
-
-	// Override the client's baseURL by reaching into the unexported field via a
-	// custom constructor — we expose it through NewClient then swap the inner URL.
-	c := &Client{
-		client: newTestHTTPClient(srv.URL),
-		debug:  false,
-	}
-	got, err := c.GetCSRFToken()
-	if err != nil {
-		t.Fatalf("GetCSRFToken error: %v", err)
-	}
-	if got.Data.CreateCsrfToken.CSRFToken != "csrf-xyz" {
-		t.Errorf("CSRFToken = %q, want csrf-xyz", got.Data.CreateCsrfToken.CSRFToken)
-	}
-}
-
 func TestGetVehicleState(t *testing.T) {
-	authPath := writeAuthFile(t, types.AuthData{
+	authPath := testutil.WriteAuthFile(t, types.AuthData{
 		Token: "bearer-tok", VehicleID: "v999",
 	})
 
@@ -152,7 +107,6 @@ func TestGetVehicleState(t *testing.T) {
 	c := &Client{
 		client:   newTestHTTPClient(srv.URL),
 		authFile: authPath,
-		debug:    false,
 	}
 	got, err := c.GetVehicleState()
 	if err != nil {

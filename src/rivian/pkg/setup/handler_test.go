@@ -12,29 +12,25 @@ import (
 
 // fakeAuth implements Authenticator for tests without hitting the network.
 type fakeAuth struct {
-	loginErr   error
-	mfaErr     error
-	writeMFA   bool // when true, InitialLogin writes a .mfa file
-	mfaFile    string
+	loginErr    error
+	mfaErr      error
+	mfaRequired bool // when true, InitialLogin returns mfaRequired=true
 }
 
-func (f *fakeAuth) InitialLogin(username, password, outputFile string) error {
+func (f *fakeAuth) InitialLogin(username, password, outputFile string) (bool, error) {
 	if f.loginErr != nil {
-		return f.loginErr
+		return false, f.loginErr
 	}
-	if f.writeMFA {
-		// Simulate MFA-required response: write a .mfa temp file, no auth.json.
-		return os.WriteFile(outputFile+".mfa", []byte(`{"username":"test@example.com","timestamp":9999999999}`), 0600)
+	if f.mfaRequired {
+		return true, nil
 	}
-	// Simulate success: write a minimal auth.json.
-	return os.WriteFile(outputFile, []byte("dGVzdA=="), 0600) // base64("test")
+	return false, os.WriteFile(outputFile, []byte("dGVzdA=="), 0600)
 }
 
-func (f *fakeAuth) CompleteMFA(username, password, otpCode, outputFile string) error {
+func (f *fakeAuth) CompleteMFA(username, otpCode, outputFile string) error {
 	if f.mfaErr != nil {
 		return f.mfaErr
 	}
-	os.Remove(outputFile + ".mfa")
 	return os.WriteFile(outputFile, []byte("dGVzdA=="), 0600)
 }
 
@@ -143,7 +139,7 @@ func TestLogin_SuccessNoMFA(t *testing.T) {
 }
 
 func TestLogin_MFARequired(t *testing.T) {
-	h, _ := newTestHandler(t, &fakeAuth{writeMFA: true})
+	h, _ := newTestHandler(t, &fakeAuth{mfaRequired: true})
 	srv := serve(t, h)
 	defer srv.Close()
 
