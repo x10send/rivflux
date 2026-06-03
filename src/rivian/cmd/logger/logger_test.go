@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rivflux/rivian/pkg/types"
+	"github.com/x10send/rivflux/pkg/types"
 	"github.com/influxdata/influxdb-client-go/v2/api/write"
 )
 

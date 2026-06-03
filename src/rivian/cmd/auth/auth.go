@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/rivflux/rivian/pkg/auth"
+	"github.com/x10send/rivflux/pkg/auth"
 )
 
 func runAuth(username, password, otpCode, outputFile string, debug bool) error {

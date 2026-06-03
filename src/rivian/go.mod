@@ -1,4 +1,4 @@
-module github.com/rivflux/rivian
+module github.com/x10send/rivflux
 
 go 1.21
 

@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rivflux/rivian/pkg/types"
+	"github.com/x10send/rivflux/pkg/types"
 )
 
 func TestNewClient(t *testing.T) {

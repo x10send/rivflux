@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rivflux/rivian/pkg/types"
+	"github.com/x10send/rivflux/pkg/types"
 )
 
 // Client represents a Rivian HTTP client

@@ -1,31 +1,17 @@
 FROM golang:1.21-alpine AS builder
-
 WORKDIR /app
-
-# Copy go mod and sum files
 COPY src/rivian/go.mod src/rivian/go.sum ./
-
-# Download dependencies
 RUN go mod download
-
-# Copy source code
 COPY src/rivian/ .
+RUN CGO_ENABLED=0 GOOS=linux go build -o server cmd/server/main.go && \
+    CGO_ENABLED=0 GOOS=linux go build -o auth cmd/auth/main.go
 
-# Build both binaries
-RUN CGO_ENABLED=0 GOOS=linux go build -o auth cmd/auth/main.go && \
-    CGO_ENABLED=0 GOOS=linux go build -o logger cmd/logger/main.go
-
-# Create final image
 FROM alpine:latest
-
+RUN addgroup -S rivflux && adduser -S rivflux -G rivflux
 WORKDIR /app
-
-# Copy binaries from builder
+COPY --from=builder /app/server .
 COPY --from=builder /app/auth .
-COPY --from=builder /app/logger .
-
-# Create directory for auth file
-RUN mkdir -p /app && chmod 700 /app
-
-# Set default command (can be overridden by docker-compose)
-ENTRYPOINT ["./logger"] 
+RUN mkdir -p /data && chown -R rivflux:rivflux /data
+USER rivflux
+EXPOSE 8888
+ENTRYPOINT ["./server"]

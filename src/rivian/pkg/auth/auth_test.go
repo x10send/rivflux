@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rivflux/rivian/pkg/types"
+	"github.com/x10send/rivflux/pkg/types"
 )
 
 func TestAuthenticator_InitialLogin(t *testing.T) {

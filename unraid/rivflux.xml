@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>rivflux</Name>
+  <Repository>ghcr.io/x10send/rivflux:latest</Repository>
+  <Registry>https://ghcr.io/x10send/rivflux</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/x10send/rivflux/issues</Support>
+  <Project>https://github.com/x10send/rivflux</Project>
+  <Overview>Rivian vehicle data collector. Polls the Rivian API and writes telemetry (battery, range, charge state, cabin temp, mileage, etc.) to InfluxDB. Includes a built-in setup UI — open the WebUI after starting the container to authenticate with your Rivian account. Credentials are never stored; only the resulting session token is saved to the appdata volume.</Overview>
+  <Category>Tools:</Category>
+  <WebUI>http://[IP]:[PORT:8888]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/x10send/rivflux/main/unraid/rivflux.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/x10send/rivflux/main/unraid/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Setup UI Port" Target="8888" Default="8888" Mode="tcp" Description="Port for the setup web UI. Open this in your browser after starting the container to authenticate." Type="Port" Display="always" Required="true" Mask="false">8888</Config>
+  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/rivflux" Mode="" Description="Directory where the Rivian session token is persisted between restarts." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/rivflux</Config>
+  <Config Name="InfluxDB Token" Target="INFLUX_TOKEN" Default="" Mode="" Description="InfluxDB API token with write access to your Rivian bucket." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="InfluxDB URL" Target="INFLUX_URL" Default="http://192.168.1.x:8086" Mode="" Description="Base URL of your InfluxDB instance, including protocol and port." Type="Variable" Display="always" Required="true" Mask="false">http://192.168.1.x:8086</Config>
+  <Config Name="InfluxDB Org" Target="INFLUX_ORG" Default="rivflux" Mode="" Description="InfluxDB organization name." Type="Variable" Display="always" Required="false" Mask="false">rivflux</Config>
+  <Config Name="InfluxDB Bucket" Target="INFLUX_BUCKET" Default="rivian" Mode="" Description="InfluxDB bucket to write vehicle data into." Type="Variable" Display="always" Required="false" Mask="false">rivian</Config>
+  <Config Name="Poll Interval (seconds)" Target="POLL_INTERVAL" Default="300" Mode="" Description="How often to poll the Rivian API. Default is 300 (5 minutes)." Type="Variable" Display="always" Required="false" Mask="false">300</Config>
+</Container>
