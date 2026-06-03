@@ -33,11 +33,11 @@ If you already have InfluxDB and Grafana running, skip to [step 3](#3-install-ri
 
 In the **Apps** tab search for **InfluxDB** and install it. The default port is `8086`.
 
-Once the container is running, open `http://[UNRAID-IP]:8086` to complete the initial setup:
+Once the container is running, open `http://[UNRAID-IP]:8086`. InfluxDB will walk you through a one-time setup wizard:
 
 1. Create an admin username and password
 2. Set the **Organization** name — use `rivflux` to match the defaults, or any name you prefer
-3. Set the **Bucket** name — this **must be `rivian`** (the dashboard queries have it hardcoded). If you use a different name you will need to edit the dashboard JSON to match.
+3. Set the **Bucket** name — the wizard creates the bucket for you here. It **must be `rivian`** (the dashboard queries have it hardcoded). If you use a different name you will need to edit the dashboard JSON to match.
 4. Click **Continue** — InfluxDB will display an **API token**. **Copy it now**, it won't be shown again. This is your `INFLUX_TOKEN`.
 
 If you missed the token, generate a new one under **Load Data → API Tokens → Generate API Token → All Access Token**.
