@@ -29,15 +29,20 @@ Every poll (default: 5 minutes):
 
 If you already have InfluxDB and Grafana running, skip to [step 3](#3-install-rivflux).
 
-### 1. Install InfluxDB
+### 1. Set up InfluxDB
 
-In the **Apps** tab search for **InfluxDB** and install it. The default port is `8086`.
+**Already have InfluxDB running?** You just need a bucket and a token:
+
+1. Go to **Load Data → Buckets → Create Bucket** and name it `rivian` (the dashboard queries require this exact name)
+2. Go to **Load Data → API Tokens → Generate API Token → Custom API Token**, grant it **write** access to the `rivian` bucket, and copy the token — this is your `INFLUX_TOKEN`
+
+**Fresh install?** In the **Apps** tab search for **InfluxDB** and install it. The default port is `8086`.
 
 Once the container is running, open `http://[UNRAID-IP]:8086`. InfluxDB will walk you through a one-time setup wizard:
 
 1. Create an admin username and password
 2. Set the **Organization** name — use `rivflux` to match the defaults, or any name you prefer
-3. Set the **Bucket** name — the wizard creates the bucket for you here. It **must be `rivian`** (the dashboard queries have it hardcoded). If you use a different name you will need to edit the dashboard JSON to match.
+3. Set the **Bucket** name to `rivian` — the wizard creates it for you here. The dashboard queries require this exact name; if you use something different you will need to edit the dashboard JSON to match.
 4. Click **Continue** — InfluxDB will display an **API token**. **Copy it now**, it won't be shown again. This is your `INFLUX_TOKEN`.
 
 If you missed the token, generate a new one under **Load Data → API Tokens → Generate API Token → All Access Token**.
