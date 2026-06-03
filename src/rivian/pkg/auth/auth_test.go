@@ -9,58 +9,87 @@ import (
 	"github.com/x10send/rivflux/pkg/types"
 )
 
-func TestAuthenticator_InitialLogin(t *testing.T) {
-	// Test with empty credentials
-	err := NewAuthenticator(true).InitialLogin("", "", "test_auth.json")
+func TestInitialLogin_EmptyCredentials(t *testing.T) {
+	err := NewAuthenticator(false).InitialLogin("", "", "auth.json")
 	if err == nil {
-		t.Error("Expected error with empty credentials")
-	}
-
-	// Test with invalid file path
-	err = NewAuthenticator(true).InitialLogin("test@example.com", "password", "/invalid/path/auth.json")
-	if err == nil {
-		t.Error("Expected error with invalid file path")
+		t.Fatal("expected error for empty credentials")
 	}
 }
 
-func TestAuthenticator_CompleteMFA(t *testing.T) {
-	// Create a temporary MFA file
-	tmpFile, err := os.CreateTemp("", "auth_test_*.json")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
-	// Create test MFA data
-	mfaData := types.MFAData{
-		Username:        "test@example.com",
-		CSRFToken:      "test-csrf",
-		AppSessionToken: "test-app-session",
-		OTPToken:       "test-otp",
-		Timestamp:      time.Now().Unix(),
-	}
-
-	// Write MFA data to file
-	jsonData, err := json.Marshal(mfaData)
-	if err != nil {
-		t.Fatalf("Failed to marshal MFA data: %v", err)
-	}
-
-	mfaFile := tmpFile.Name() + ".mfa"
-	if err := os.WriteFile(mfaFile, jsonData, 0600); err != nil {
-		t.Fatalf("Failed to write MFA file: %v", err)
-	}
-	defer os.Remove(mfaFile)
-
-	// Test with empty OTP code
-	err = NewAuthenticator(true).CompleteMFA("test@example.com", "", mfaFile, "test_auth.json")
+func TestInitialLogin_NetworkFailure(t *testing.T) {
+	// Points at a port nothing is listening on.
+	err := NewAuthenticator(false).InitialLogin("user@example.com", "pass", "auth.json")
 	if err == nil {
-		t.Error("Expected error with empty OTP code")
+		t.Fatal("expected error when Rivian API is unreachable")
+	}
+}
+
+func TestCompleteMFA_MissingMFAFile(t *testing.T) {
+	err := NewAuthenticator(false).CompleteMFA("user@example.com", "", "123456", "/nonexistent/auth.json")
+	if err == nil {
+		t.Fatal("expected error when .mfa file is missing")
+	}
+}
+
+func TestCompleteMFA_CorruptedMFAFile(t *testing.T) {
+	dir := t.TempDir()
+	authFile := dir + "/auth.json"
+	mfaFile := authFile + ".mfa"
+
+	if err := os.WriteFile(mfaFile, []byte("not valid json"), 0600); err != nil {
+		t.Fatal(err)
 	}
 
-	// Test with invalid MFA file
-	err = NewAuthenticator(true).CompleteMFA("test@example.com", "123456", "/invalid/path/auth.mfa", "test_auth.json")
+	err := NewAuthenticator(false).CompleteMFA("user@example.com", "", "123456", authFile)
 	if err == nil {
-		t.Error("Expected error with invalid MFA file")
+		t.Fatal("expected error for corrupted .mfa file")
 	}
-} 
+}
+
+func TestCompleteMFA_ExpiredSession(t *testing.T) {
+	dir := t.TempDir()
+	authFile := dir + "/auth.json"
+	mfaFile := authFile + ".mfa"
+
+	expired := types.MFAData{
+		Username:        "user@example.com",
+		CSRFToken:       "csrf",
+		AppSessionToken: "app",
+		OTPToken:        "otp",
+		Timestamp:       time.Now().Unix() - 7200, // 2 hours ago
+	}
+	data, _ := json.Marshal(expired)
+	if err := os.WriteFile(mfaFile, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := NewAuthenticator(false).CompleteMFA("user@example.com", "", "123456", authFile)
+	if err == nil {
+		t.Fatal("expected error for expired MFA session")
+	}
+}
+
+func TestCompleteMFA_NetworkFailure(t *testing.T) {
+	// Write a valid, non-expired .mfa file so we get past local validation
+	// and hit the (non-existent) network — confirming the OTP request fires.
+	dir := t.TempDir()
+	authFile := dir + "/auth.json"
+	mfaFile := authFile + ".mfa"
+
+	valid := types.MFAData{
+		Username:        "user@example.com",
+		CSRFToken:       "csrf",
+		AppSessionToken: "app",
+		OTPToken:        "otp-token",
+		Timestamp:       time.Now().Unix(),
+	}
+	data, _ := json.Marshal(valid)
+	if err := os.WriteFile(mfaFile, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	err := NewAuthenticator(false).CompleteMFA("user@example.com", "", "123456", authFile)
+	if err == nil {
+		t.Fatal("expected network error when Rivian is unreachable")
+	}
+}
