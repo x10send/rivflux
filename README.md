@@ -23,15 +23,67 @@ Every poll (default: 5 minutes):
 - Power state, drive mode, and gear status
 - Vehicle mileage
 
-## Quick Start: Unraid
+---
 
-Install via Community Apps (search **Rivflux**), or from the **Docker** tab click **Add Container** and enter `ghcr.io/x10send/rivflux:latest` as the repository.
+## Unraid Setup Guide
 
-Required: `INFLUX_TOKEN` and `INFLUX_URL` (your InfluxDB address). Org, bucket, poll interval, and the host-side port (default **8888**) are all configurable in the template.
+If you already have InfluxDB and Grafana running, skip to [step 3](#3-install-rivflux).
 
-Open the WebUI after starting the container, enter your Rivian credentials, and complete MFA if prompted. The collector starts automatically once authenticated.
+### 1. Install InfluxDB
 
-To visualize data, import `config/grafana/dashboards/Rivian.json` into your existing Grafana instance and point it at your InfluxDB datasource.
+In the **Apps** tab search for **InfluxDB** and install it. The default port is `8086`.
+
+Once the container is running, open `http://[UNRAID-IP]:8086` to complete the initial setup:
+
+1. Create an admin username and password
+2. Set the **Organization** name — use `rivflux` to match the defaults, or any name you prefer
+3. Set the **Bucket** name — use `rivian`, or any name you prefer
+4. Click **Continue** — InfluxDB will display an **API token**. **Copy it now**, it won't be shown again. This is your `INFLUX_TOKEN`.
+
+If you missed the token, generate a new one under **Load Data → API Tokens → Generate API Token → All Access Token**.
+
+### 2. Install Grafana
+
+In the **Apps** tab search for **Grafana** and install it. The default port is `3000`.
+
+Open `http://[UNRAID-IP]:3000` and log in (default: `admin` / `admin`). Then:
+
+**Add the InfluxDB datasource:**
+
+1. Go to **Connections → Data Sources → Add new data source**
+2. Select **InfluxDB**
+3. Set **Query Language** to **Flux**
+4. Set **URL** to `http://[UNRAID-IP]:8086`
+5. Under **InfluxDB Details**, enter your **Organization** and **Token**
+6. Set **Default Bucket** to your bucket name (e.g. `rivian`)
+7. Click **Save & Test** — you should see a success message
+
+**Import the dashboard:**
+
+1. Go to **Dashboards → Import**
+2. Click **Upload dashboard JSON file**
+3. Select `config/grafana/dashboards/Rivian.json` from this repo
+4. Select the InfluxDB datasource you just created
+5. Click **Import**
+
+### 3. Install Rivflux
+
+In the **Apps** tab search for **Rivflux** and install it, or from the **Docker** tab click **Add Container** and enter `ghcr.io/x10send/rivflux:latest` as the repository.
+
+Configure the following variables in the template:
+
+| Variable | Value |
+|---|---|
+| `INFLUX_TOKEN` | The API token from step 1 |
+| `INFLUX_URL` | `http://[UNRAID-IP]:8086` |
+| `INFLUX_ORG` | Your organization name (default: `rivflux`) |
+| `INFLUX_BUCKET` | Your bucket name (default: `rivian`) |
+
+The host-side port defaults to **8888** — change it in the template if that port is already in use.
+
+Start the container, then open the WebUI (`http://[UNRAID-IP]:8888`), enter your Rivian credentials, and complete MFA if prompted. The collector starts automatically once authenticated. Data will appear in Grafana within one poll interval (default: 5 minutes).
+
+---
 
 ## Quick Start: Docker Compose
 
@@ -85,7 +137,7 @@ Mount a persistent volume at `/data` to survive container restarts without re-au
 
 ![Historical Data](https://github.com/bttnns/rivflux/assets/155249827/412949af-9a7d-44ac-9f7e-2d396d63b7b4)
 
-The dashboard JSON is at `config/grafana/dashboards/Rivian.json`. When using Docker Compose it is provisioned automatically. For standalone Grafana, import it manually and configure an InfluxDB datasource pointing at your instance.
+The dashboard JSON is at `config/grafana/dashboards/Rivian.json`. When using Docker Compose it is provisioned automatically. For standalone Grafana, import it manually as described in the Unraid setup guide above.
 
 ## Security Notes
 
