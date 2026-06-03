@@ -25,30 +25,22 @@ services:
       retries: 3
       start_period: 30s
   rivian-collector:
-    build:
-      context: .
-      dockerfile: docker/rivian/Dockerfile
+    image: ghcr.io/x10send/rivflux:latest
     container_name: rivian-collector
     restart: unless-stopped
+    ports:
+      - "${SETUP_PORT:-8888}:8888"
+    environment:
+      - INFLUX_TOKEN=${INFLUX_TOKEN}
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_ORG=${INFLUX_ORG:-rivflux}
+      - INFLUX_BUCKET=${INFLUX_BUCKET:-rivian}
+      - POLL_INTERVAL=${POLL_INTERVAL:-300}
     volumes:
-      - ./data/auth:/app
-    command: [
-      "-auth-file=/app/auth.json",
-      "-influx-url=http://influxdb:8086",
-      "-influx-token=${INFLUX_TOKEN}",
-      "-influx-org=rivflux",
-      "-influx-bucket=rivian",
-      "-poll-interval=300"
-    ]
+      - ./data/rivflux:/data
     depends_on:
       influxdb:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "ps", "aux", "|", "grep", "logger"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
   grafana:
     image: grafana/grafana:10.0.3
     container_name: grafana

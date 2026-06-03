@@ -25,11 +25,15 @@ Every poll (default: 5 minutes):
 
 ## Quick Start: Unraid
 
-Install via Community Apps (search **Rivflux**) or add the template manually from `unraid/rivflux.xml`. Required variables: `INFLUX_TOKEN`, `INFLUX_URL`.
+Install via Community Apps (search **Rivflux**), or from the **Docker** tab click **Add Container** and enter `ghcr.io/x10send/rivflux:latest` as the repository.
 
-The container exposes a setup UI on port **8888**. Open it in your browser, enter your Rivian credentials, and complete MFA if prompted. Once authenticated the collector starts automatically.
+Required: `INFLUX_TOKEN` and `INFLUX_URL`. Org, bucket, poll interval, and the host-side port (default **8888**) are all configurable in the template — no Grafana password needed here.
+
+Open the WebUI after starting the container, enter your Rivian credentials, and complete MFA if prompted. The collector starts automatically once authenticated.
 
 ## Quick Start: Docker Compose
+
+The compose file brings up InfluxDB, Rivflux, and Grafana together. If you already have Grafana, you can ignore the Grafana service and skip `GRAFANA_PASSWORD`.
 
 ```bash
 git clone https://github.com/x10send/rivflux.git
@@ -40,7 +44,9 @@ Copy and edit the environment file:
 
 ```bash
 cp .env.example .env
-# Set INFLUX_TOKEN, INFLUX_URL, GRAFANA_PASSWORD
+# Required: INFLUX_TOKEN
+# Optional: INFLUX_ORG, INFLUX_BUCKET, POLL_INTERVAL, SETUP_PORT
+# Only needed if using the bundled Grafana: GRAFANA_PASSWORD
 ```
 
 Start the stack:
@@ -49,7 +55,7 @@ Start the stack:
 docker compose up -d
 ```
 
-Open `http://localhost:8888` and authenticate with your Rivian credentials.
+Open `http://localhost:8888` (or your configured `SETUP_PORT`) and authenticate with your Rivian credentials.
 
 ## Docker Image
 
@@ -64,7 +70,7 @@ ghcr.io/x10send/rivflux:latest
 | `INFLUX_ORG` | No | `rivflux` | InfluxDB organization |
 | `INFLUX_BUCKET` | No | `rivian` | InfluxDB bucket |
 | `POLL_INTERVAL` | No | `300` | Seconds between polls |
-| `SETUP_PORT` | No | `8888` | Web UI port |
+| `SETUP_PORT` | No | `8888` | Web UI port (8888 is a common port — change if needed) |
 | `AUTH_FILE` | No | `/data/auth.json` | Session token path |
 
 Mount a persistent volume at `/data` to survive container restarts without re-authenticating.
