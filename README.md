@@ -37,7 +37,7 @@ Once the container is running, open `http://[UNRAID-IP]:8086` to complete the in
 
 1. Create an admin username and password
 2. Set the **Organization** name — use `rivflux` to match the defaults, or any name you prefer
-3. Set the **Bucket** name — use `rivian`, or any name you prefer
+3. Set the **Bucket** name — this **must be `rivian`** (the dashboard queries have it hardcoded). If you use a different name you will need to edit the dashboard JSON to match.
 4. Click **Continue** — InfluxDB will display an **API token**. **Copy it now**, it won't be shown again. This is your `INFLUX_TOKEN`.
 
 If you missed the token, generate a new one under **Load Data → API Tokens → Generate API Token → All Access Token**.
@@ -123,7 +123,7 @@ ghcr.io/x10send/rivflux:latest
 | `INFLUX_TOKEN` | Yes | — | InfluxDB write token |
 | `INFLUX_URL` | Yes | — | InfluxDB base URL (e.g. `http://192.168.1.x:8086`) |
 | `INFLUX_ORG` | No | `rivflux` | InfluxDB organization |
-| `INFLUX_BUCKET` | No | `rivian` | InfluxDB bucket |
+| `INFLUX_BUCKET` | No | `rivian` | InfluxDB bucket — dashboard queries require `rivian` |
 | `POLL_INTERVAL` | No | `300` | Seconds between polls |
 | `SETUP_PORT` | No | `8888` | Web UI port — change if 8888 is already in use |
 
